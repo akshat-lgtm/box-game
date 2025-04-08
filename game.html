@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Akshat's Escape Game</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+        
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(to bottom, #e0f7fa, #b2ebf2);
+            border: 4px solid #4fc3f7;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(26, 26, 46, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+            z-index: 10;
+            border: 2px solid #4fc3f7;
+            animation: fadeIn 0.5s ease-out;
+            max-width: 80%;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -40%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        
+        h1 {
+            color: #ff5252;
+            margin-top: 0;
+            font-size: 42px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            font-weight: 700;
+        }
+        
+        button {
+            background: linear-gradient(to right, #4fc3f7, #2196f3);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            text-align: center;
+            font-size: 18px;
+            margin: 15px 2px;
+            cursor: pointer;
+            border-radius: 50px;
+            transition: all 0.3s;
+            font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            background: linear-gradient(to right, #2196f3, #4fc3f7);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        #scoreDisplay, #difficultyDisplay, #speedDisplay {
+            position: absolute;
+            font-size: 18px;
+            color: white;
+            background: rgba(26, 26, 46, 0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-weight: 600;
+        }
+        
+        #scoreDisplay {
+            top: 15px;
+            left: 15px;
+            border: 2px solid #4fc3f7;
+        }
+        
+        #difficultyDisplay {
+            top: 15px;
+            right: 15px;
+            border: 2px solid #ff5252;
+        }
+        
+        #speedDisplay {
+            top: 50px;
+            left: 15px;
+            border: 2px solid #69f0ae;
+        }
+        
+        #controlsInfo {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            font-size: 16px;
+            color: white;
+            background: rgba(26, 26, 46, 0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 2px solid #4fc3f7;
+        }
+        
+        p {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        
+        #finalScore, #highScore {
+            font-size: 20px;
+            margin: 15px 0;
+            font-weight: 600;
+        }
+        
+        #finalScore {
+            color: #4fc3f7;
+        }
+        
+        #highScore {
+            color: #69f0ae;
+        }
+        
+        /* Floating animation for obstacles */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="scoreDisplay">Score: 0</div>
+        <div id="difficultyDisplay">Difficulty: 1x</div>
+        <div id="speedDisplay">Speed: 50</div>
+        <div id="controlsInfo">Controls: Arrows or WASD</div>
+        <div id="gameOver">
+            <h1>GAME OVER!</h1>
+            <p>Akshat got hit by an obstacle!</p>
+            <p id="finalScore">Your score: 0</p>
+            <p id="highScore">High score: 0</p>
+            <button onclick="resetGame()">Play Again (or press Enter)</button>
+        </div>
+    </div>
+
+    <script>
+        // Game elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverDiv = document.getElementById('gameOver');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const difficultyDisplay = document.getElementById('difficultyDisplay');
+        const speedDisplay = document.getElementById('speedDisplay');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const highScoreDisplay = document.getElementById('highScore');
+        
+        // Game settings
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        
+        // Player settings
+        const playerSize = 40;
+        let playerX = canvas.width / 2 - playerSize / 2;
+        let playerY = canvas.height / 2 - playerSize / 2;
+        const basePlayerSpeed = 50;
+        const speedIncreasePer500 = basePlayerSpeed * 0.02; // 2% of original speed
+        let currentPlayerSpeed = basePlayerSpeed;
+        let targetX = playerX;
+        let targetY = playerY;
+        const smoothingFactor = 0.08;
+        
+        // Obstacle settings
+        const obstacleSize = 30;
+        const baseObstacleSpeed = 2;
+        let obstacleSpeed = baseObstacleSpeed;
+        let obstacles = [];
+        const baseObstacleSpawnRate = 60;
+        let obstacleSpawnRate = baseObstacleSpawnRate;
+        let frameCount = 0;
+        
+        // Game state
+        let gameOver = false;
+        let score = 0;
+        let highScore = 0;
+        let difficulty = 1;
+        
+        // Key states - supports both arrow keys and WASD
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            w: false,    // Up (WASD)
+            a: false,    // Left (WASD)
+            s: false,    // Down (WASD)
+            d: false     // Right (WASD)
+        };
+        
+        // Event listeners for keyboard
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) {
+                keys[e.key] = true;
+                updateTargetPosition();
+            }
+            // Restart game with Enter key
+            if (e.key === 'Enter' && gameOver) {
+                resetGame();
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) {
+                keys[e.key] = false;
+                updateTargetPosition();
+            }
+        });
+        
+        // Update target position based on keys pressed
+        function updateTargetPosition() {
+            // Left movement (ArrowLeft or A)
+            if (keys.ArrowLeft || keys.a) {
+                targetX = Math.max(0, playerX - currentPlayerSpeed);
+            }
+            // Right movement (ArrowRight or D)
+            if (keys.ArrowRight || keys.d) {
+                targetX = Math.min(canvas.width - playerSize, playerX + currentPlayerSpeed);
+            }
+            // Up movement (ArrowUp or W)
+            if (keys.ArrowUp || keys.w) {
+                targetY = Math.max(0, playerY - currentPlayerSpeed);
+            }
+            // Down movement (ArrowDown or S)
+            if (keys.ArrowDown || keys.s) {
+                targetY = Math.min(canvas.height - playerSize, playerY + currentPlayerSpeed);
+            }
+            
+            // If no horizontal keys are pressed, stay in current X position
+            if (!keys.ArrowLeft && !keys.a && !keys.ArrowRight && !keys.d) {
+                targetX = playerX;
+            }
+            // If no vertical keys are pressed, stay in current Y position
+            if (!keys.ArrowUp && !keys.w && !keys.ArrowDown && !keys.s) {
+                targetY = playerY;
+            }
+        }
+        
+        // Game loop
+        function gameLoop() {
+            if (!gameOver) {
+                update();
+                score++;
+                scoreDisplay.textContent = `Score: ${score}`;
+                
+                // Calculate difficulty based on score
+                difficulty = 1 + (score / 2000);
+                obstacleSpeed = baseObstacleSpeed * difficulty;
+                obstacleSpawnRate = Math.max(20, baseObstacleSpawnRate - (score / 50));
+                
+                // Increase player speed by 2% of original speed every 500 score
+                const speedIncrease = Math.floor(score / 500) * speedIncreasePer500;
+                currentPlayerSpeed = basePlayerSpeed + speedIncrease;
+                
+                difficultyDisplay.textContent = `Difficulty: ${difficulty.toFixed(1)}x`;
+                speedDisplay.textContent = `Speed: ${currentPlayerSpeed.toFixed(1)}`;
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Update game state
+        function update() {
+            // Smooth player movement using linear interpolation
+            playerX += (targetX - playerX) * smoothingFactor;
+            playerY += (targetY - playerY) * smoothingFactor;
+            
+            // Spawn obstacles
+            frameCount++;
+            if (frameCount % Math.floor(obstacleSpawnRate) === 0) {
+                spawnObstacle();
+            }
+            
+            // Update obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x += obstacles[i].dx;
+                obstacles[i].y += obstacles[i].dy;
+                
+                // Remove obstacles that are out of bounds
+                if (obstacles[i].x < -obstacleSize || obstacles[i].x > canvas.width ||
+                    obstacles[i].y < -obstacleSize || obstacles[i].y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+                
+                // Check for collision with player
+                if (playerX < obstacles[i].x + obstacleSize &&
+                    playerX + playerSize > obstacles[i].x &&
+                    playerY < obstacles[i].y + obstacleSize &&
+                    playerY + playerSize > obstacles[i].y) {
+                    gameOver = true;
+                    gameOverDiv.style.display = 'block';
+                    finalScoreDisplay.textContent = `Your score: ${score}`;
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreDisplay.textContent = `High score: ${highScore}`;
+                    }
+                }
+            }
+        }
+        
+        // Draw everything
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid background
+            drawGridBackground();
+            
+            // Draw obstacles with animation
+            ctx.fillStyle = '#ff5252';
+            for (const obstacle of obstacles) {
+                ctx.save();
+                const floatOffset = Math.sin(Date.now() / 200 + obstacle.x * 0.1) * 3;
+                ctx.translate(0, floatOffset);
+                
+                // Draw obstacle with shadow
+                ctx.shadowColor = 'rgba(255, 82, 82, 0.5)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+                
+                ctx.beginPath();
+                ctx.roundRect(obstacle.x, obstacle.y, obstacleSize, obstacleSize, 5);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Draw obstacle highlight
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.beginPath();
+                ctx.roundRect(obstacle.x + 3, obstacle.y + 3, obstacleSize - 6, obstacleSize/3, 3);
+                ctx.fill();
+                
+                ctx.restore();
+                ctx.fillStyle = '#ff5252';
+            }
+            
+            // Draw player
+            // Draw player body with shadow
+            ctx.shadowColor = 'rgba(33, 150, 243, 0.5)';
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            
+            ctx.fillStyle = '#2196F3';
+            ctx.beginPath();
+            ctx.roundRect(playerX, playerY, playerSize, playerSize, 8);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Draw player face (simple)
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(playerX + 15, playerY + 15, 4, 0, Math.PI * 2); // left eye
+            ctx.arc(playerX + playerSize - 15, playerY + 15, 4, 0, Math.PI * 2); // right eye
+            ctx.fill();
+            
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.roundRect(playerX + 15, playerY + 25, playerSize - 30, 4, 2); // mouth
+            ctx.fill();
+            
+            // Draw player name "AKSHAT" on shirt
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 14px Poppins';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('AKSHAT', playerX + playerSize/2, playerY + playerSize/2 + 10);
+        }
+        
+        // Draw grid background
+        function drawGridBackground() {
+            ctx.strokeStyle = 'rgba(178, 235, 242, 0.2)';
+            ctx.lineWidth = 1;
+            
+            // Vertical lines
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+        
+        // Spawn a new obstacle
+        function spawnObstacle() {
+            const side = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
+            let x, y, dx, dy;
+            
+            if (side === 0) { // top
+                x = Math.random() * (canvas.width - obstacleSize);
+                y = -obstacleSize;
+                dx = 0;
+                dy = obstacleSpeed;
+            } else if (side === 1) { // right
+                x = canvas.width;
+                y = Math.random() * (canvas.height - obstacleSize);
+                dx = -obstacleSpeed;
+                dy = 0;
+            } else if (side === 2) { // bottom
+                x = Math.random() * (canvas.width - obstacleSize);
+                y = canvas.height;
+                dx = 0;
+                dy = -obstacleSpeed;
+            } else { // left
+                x = -obstacleSize;
+                y = Math.random() * (canvas.height - obstacleSize);
+                dx = obstacleSpeed;
+                dy = 0;
+            }
+            
+            obstacles.push({ x, y, dx, dy });
+        }
+        
+        // Reset the game
+        function resetGame() {
+            playerX = canvas.width / 2 - playerSize / 2;
+            playerY = canvas.height / 2 - playerSize / 2;
+            targetX = playerX;
+            targetY = playerY;
+            obstacles = [];
+            gameOver = false;
+            gameOverDiv.style.display = 'none';
+            frameCount = 0;
+            score = 0;
+            difficulty = 1;
+            currentPlayerSpeed = basePlayerSpeed;
+            obstacleSpeed = baseObstacleSpeed;
+            obstacleSpawnRate = baseObstacleSpawnRate;
+            scoreDisplay.textContent = `Score: ${score}`;
+            difficultyDisplay.textContent = `Difficulty: ${difficulty.toFixed(1)}x`;
+            speedDisplay.textContent = `Speed: ${currentPlayerSpeed.toFixed(1)}`;
+        }
+        
+        // Start the game
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+</html>
